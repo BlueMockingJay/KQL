@@ -1,5 +1,6 @@
 //Author: @BlueMockingJay
-//query logic is fully explained on https://www.socstories.blog/detecting-adcs-attacks/
+//Query logic and research behind it is explained here: https://github.com/BlueMockingJay/WriteUps/blob/main/Research/detecting%20ADCS%20attacks.md
+//Change timeframe as desired
 let timeframe = ago(7d);
 //Identifies malicious Kerberos TGT requests, based on EID4768, properties PreAuthType and TicketOptions
 let maliciousTGT = SecurityEvent
