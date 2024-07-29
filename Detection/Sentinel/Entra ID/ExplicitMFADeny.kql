@@ -1,0 +1,23 @@
+//Updated version of https://github.com/Azure/Azure-Sentinel/blob/master/Solutions/Microsoft%20Entra%20ID/Analytic%20Rules/ExplicitMFADeny.yaml
+//only includes KQL instead of the entire yaml file .. might update later
+let aadFunc = (tableName:string){
+table(tableName)
+//summarize logs based on OriginalRequestId as one login attempts generates multiple rows
+| summarize arg_max(TimeGenerated, *) by OriginalRequestId
+| where ResultType == 500121
+//some data cleaning: LocationDetails, MFADetail, Status & DeviceDetail have different datatypes in Interactive vs NonInteractive. Parse all to dynamic
+| extend Status = todynamic(Status), DeviceDetails = todynamic(DeviceDetail), LocationDetails = todynamic(LocationDetails), MfaDetails = todynamic(MfaDetail)
+//unify column names that are in plural
+| project-away MfaDetail, DeviceDetail
+//optional: improve parsing of additionalDetails
+| extend AdditionalDetails = Status.additionalDetails
+| where AdditionalDetails in~ ("MFA Denied; user declined the authentication","MFA denied; Phone App Reported Fraud")
+//optional: give indicator if login was from managed device (if DeviceId exists, the device is a managed device)
+//rule can be tweaked to exclude any alerts from a managed device if necessary
+| extend DeviceIsManaged = iff(isempty(DeviceDetails.deviceId),false,true)
+| extend timestamp = TimeGenerated, UserPrincipalName, IPAddress, ClientAppUsed
+};
+let aadSignin = aadFunc("SigninLogs");
+let aadNonInt = aadFunc("AADNonInteractiveUserSignInLogs");
+union isfuzzy=true aadSignin, aadNonInt
+| project-reorder TimeGenerated, AdditionalDetails, UserPrincipalName, AppDisplayName, IPAddress, DeviceIsManaged, DeviceDetails, NetworkLocationDetails, MfaDetails, LocationDetails
